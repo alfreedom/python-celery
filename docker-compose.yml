@@ -1,0 +1,64 @@
+version: "3"
+
+x-envs: &envs
+    CELERY_BROKER_URL: redis://redis:6379/2
+    CELERY_RESULT_BACKEND: redis://redis:6379/3
+
+x-celery-app: &x-app
+  image: python-celery
+  build:
+    dockerfile: docker/Dockerfile
+    context: .
+  command: celery_worker
+  volumes:
+    - "./app1:/app"
+  depends_on:
+    - redis
+
+services:
+  worker-sample:
+    <<: *x-app
+    container_name: worker-sample
+    environment:
+      <<: *envs
+      WORKER_QUEUE_NAME: sample_queue
+
+  worker-math:
+    <<: *x-app
+    container_name: worker-math
+    environment:
+      <<: *envs
+      WORKER_QUEUE_NAME: math_queue
+
+  celery-beat:
+    <<: *x-app
+    container_name: celery-beat
+    command: celery_beat
+    environment:
+      <<: *envs
+
+  celery-flower:
+    <<: *x-app
+    container_name: celery-flower
+    command: celery_flower
+    ports:
+      - "5555:5555"
+    environment:
+      <<: *envs
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - "./docker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf"
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - "./docker/redis.conf:/usr/local/etc/redis/redis.conf"
